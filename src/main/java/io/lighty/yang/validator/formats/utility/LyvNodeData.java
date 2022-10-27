@@ -7,6 +7,7 @@
  */
 package io.lighty.yang.validator.formats.utility;
 
+import java.util.Collection;
 import java.util.List;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
@@ -28,24 +29,35 @@ public class LyvNodeData {
     private final SchemaNode node;
     private final Absolute absolutePath;
 
-    public LyvNodeData(@NonNull final EffectiveModelContext context, @NonNull final SchemaNode node,
-            @Nullable final List<QName> keys, final Absolute absolutePath) {
+    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
+            final @NonNull Collection<QName> nodeIdentifiers) {
+        this(context, node, Absolute.of(nodeIdentifiers));
+    }
+
+    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
+            final Collection<QName> nodeIdentifiers, final @Nullable List<QName> keys) {
+        this(context, node, Absolute.of(nodeIdentifiers), keys);
+    }
+
+    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
+            final @NonNull Absolute absolutePath) {
+        this(context, node, absolutePath, null);
+    }
+
+    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
+            final @NonNull Absolute absolutePath, @Nullable final List<QName> keys) {
         this.context = context;
         this.absolutePath = absolutePath;
         this.node = node;
-        if (keys == null || keys.isEmpty()) {
-            this.isKey = false;
-        } else {
-            this.isKey = keys.contains(node.getQName());
-        }
+        isKey = keys != null && keys.contains(node.getQName());
     }
 
     public EffectiveModelContext getContext() {
-        return this.context;
+        return context;
     }
 
     public SchemaNode getNode() {
-        return this.node;
+        return node;
     }
 
     public Absolute getAbsolutePath() {
@@ -53,9 +65,9 @@ public class LyvNodeData {
     }
 
     public boolean isNodeMandatory() {
-        return (this.node instanceof MandatoryAware && ((MandatoryAware) this.node).isMandatory())
-                || this.node instanceof ContainerLike || this.node instanceof CaseSchemaNode
-                || this.node instanceof NotificationDefinition || this.node instanceof ActionDefinition
-                || this.node instanceof RpcDefinition || this.isKey;
+        return node instanceof MandatoryAware && ((MandatoryAware) node).isMandatory()
+                || node instanceof ContainerLike || node instanceof CaseSchemaNode
+                || node instanceof NotificationDefinition || node instanceof ActionDefinition
+                || node instanceof RpcDefinition || isKey;
     }
 }
