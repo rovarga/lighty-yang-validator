@@ -65,6 +65,7 @@ import org.opendaylight.yangtools.yang.model.api.LeafListSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.LeafSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.ListSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.TypedDataSchemaNode;
+import org.opendaylight.yangtools.yang.model.api.stmt.SchemaNodeIdentifier.Absolute;
 import org.opendaylight.yangtools.yang.model.util.SchemaInferenceStack;
 import org.w3c.dom.Document;
 
@@ -360,10 +361,10 @@ public final class TrackingXmlParserStream implements Closeable, Flushable {
              If yes, the node is not from another module.
              */
             schemaIS.enterSchemaTree(less.getQName());
-            final List<QName> nodeIdentifiers = schemaIS.toSchemaNodeIdentifier().getNodeIdentifiers();
+            final Absolute absolutePath = schemaIS.toSchemaNodeIdentifier();
+            final List<QName> nodeIdentifiers = absolutePath.getNodeIdentifiers();
             if (nodeIdentifiers.size() == 1) {
-                schemaTree = schemaTree.addChild(less, true, false,
-                        schemaIS.toSchemaNodeIdentifier());
+                schemaTree = schemaTree.addChild(less, true, false, absolutePath);
             /*
              If not, the node can be augmented, we need to check if the modules
              of it's parent and grand parent. If they are not the same, the node is from another module,
@@ -373,11 +374,9 @@ public final class TrackingXmlParserStream implements Closeable, Flushable {
                 final QName first = nodeIdentifiers.get(nodeIdentifiers.size() - 1);
                 final QName second = nodeIdentifiers.get(nodeIdentifiers.size() - 2);
                 if (second.getModule().equals(first.getModule())) {
-                    schemaTree = schemaTree.addChild(less, false, false,
-                            schemaIS.toSchemaNodeIdentifier());
+                    schemaTree = schemaTree.addChild(less, false, false, absolutePath);
                 } else {
-                    schemaTree = schemaTree.addChild(less, true, true,
-                            schemaIS.toSchemaNodeIdentifier());
+                    schemaTree = schemaTree.addChild(less, true, true, absolutePath);
                 }
             }
         }

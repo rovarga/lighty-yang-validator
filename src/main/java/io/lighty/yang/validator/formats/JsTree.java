@@ -12,14 +12,13 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.lighty.yang.validator.GroupArguments;
 import io.lighty.yang.validator.exceptions.NotFoundException;
 import io.lighty.yang.validator.formats.utility.LyvNodeData;
+import io.lighty.yang.validator.formats.utility.LyvNodePathStack;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -97,28 +96,27 @@ public class JsTree extends FormatPlugin {
     private List<Line> getNotificationsLines(final SingletonListInitializer singletonListInitializer,
             final Module module) {
         final List<Line> lines = new ArrayList<>();
-        final Deque<QName> currentPath = new ArrayDeque<>();
+        final var stack = new LyvNodePathStack();
         for (final NotificationDefinition node : module.getNotifications()) {
-            currentPath.addLast(node.getQName());
+            stack.enter(node.getQName());
             final List<Integer> ids = singletonListInitializer.getSingletonListWithIncreasedValue();
-            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, currentPath);
+            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, stack.currentPath());
             final HtmlLine htmlLine = new HtmlLine(new ArrayList<>(ids), lyvNodeData, RpcInputOutput.OTHER,
                     namespacePrefix);
             lines.add(htmlLine);
-            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(),
-                currentPath);
-            currentPath.removeLast();
+            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(), stack);
+            stack.exit();
         }
         return lines;
     }
 
     private List<Line> getRpcsLines(final SingletonListInitializer singletonListInitializer, final Module module) {
         final List<Line> lines = new ArrayList<>();
-        final Deque<QName> currentPath = new ArrayDeque<>();
+        final var stack = new LyvNodePathStack();
         for (final RpcDefinition node : module.getRpcs()) {
-            currentPath.addLast(node.getQName());
+            stack.enter(node.getQName());
             final List<Integer> rpcId = singletonListInitializer.getSingletonListWithIncreasedValue();
-            LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, currentPath);
+            LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, stack.currentPath());
             HtmlLine htmlLine = new HtmlLine(rpcId, lyvNodeData, RpcInputOutput.OTHER, namespacePrefix);
             lines.add(htmlLine);
             final boolean inputExists = !node.getInput().getChildNodes().isEmpty();
@@ -126,13 +124,13 @@ public class JsTree extends FormatPlugin {
             List<Integer> ids = new ArrayList<>(rpcId);
             if (inputExists) {
                 ids.add(1);
-                currentPath.addLast(node.getInput().getQName());
-                lyvNodeData = new LyvNodeData(schemaContext, node.getInput(), currentPath);
+                stack.enter(node.getInput().getQName());
+                lyvNodeData = new LyvNodeData(schemaContext, node.getInput(), stack.currentPath());
                 htmlLine = new HtmlLine(new ArrayList<>(ids), lyvNodeData, RpcInputOutput.INPUT, namespacePrefix);
                 lines.add(htmlLine);
                 resolveChildNodes(lines, new ArrayList<>(ids), node.getInput(), RpcInputOutput.INPUT,
-                        Collections.emptyList(), currentPath);
-                currentPath.removeLast();
+                        Collections.emptyList(), stack);
+                stack.exit();
             }
             ids = new ArrayList<>(rpcId);
             if (outputExists) {
@@ -141,15 +139,15 @@ public class JsTree extends FormatPlugin {
                 } else {
                     ids.add(2);
                 }
-                currentPath.addLast(node.getOutput().getQName());
-                lyvNodeData = new LyvNodeData(schemaContext, node.getOutput(), currentPath);
+                stack.enter(node.getOutput().getQName());
+                lyvNodeData = new LyvNodeData(schemaContext, node.getOutput(), stack.currentPath());
                 htmlLine = new HtmlLine(new ArrayList<>(ids), lyvNodeData, RpcInputOutput.OUTPUT, namespacePrefix);
                 lines.add(htmlLine);
                 resolveChildNodes(lines, new ArrayList<>(ids), node.getOutput(), RpcInputOutput.OUTPUT,
-                        Collections.emptyList(), currentPath);
-                currentPath.removeLast();
+                        Collections.emptyList(), stack);
+                stack.exit();
             }
-            currentPath.removeLast();
+            stack.exit();
         }
         return lines;
     }
@@ -167,50 +165,48 @@ public class JsTree extends FormatPlugin {
             }
         }
 
-        final Deque<QName> currentPath = new ArrayDeque<>();
+        final var stack = new LyvNodePathStack();
         for (final DataSchemaNode node : module.getChildNodes()) {
-            currentPath.addLast(node.getQName());
+            stack.enter(node.getQName());
             final List<Integer> ids = singletonListInitializer.getSingletonListWithIncreasedValue();
-            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, currentPath);
+            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, node, stack.currentPath());
             final HtmlLine htmlLine = new HtmlLine(ids, lyvNodeData, RpcInputOutput.OTHER, namespacePrefix);
             lines.add(htmlLine);
-            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(),
-                currentPath);
-            currentPath.removeLast();
+            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(), stack);
+            stack.exit();
         }
         return lines;
     }
 
     private List<Line> getAugmentationNodesLines(final List<Integer> ids, final AugmentationSchemaNode augNode) {
         final List<Line> lines = new ArrayList<>();
-        final Deque<QName> currentPath = new ArrayDeque<>();
-        currentPath.addAll(augNode.getTargetPath().getNodeIdentifiers());
+        final LyvNodePathStack stack = new LyvNodePathStack();
+        stack.enter(augNode.getTargetPath());
         final DataSchemaNode dataSchemaNode = augNode.getChildNodes().iterator().next();
-        currentPath.addLast(dataSchemaNode.getQName());
-        LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, dataSchemaNode, currentPath);
+        stack.enter(dataSchemaNode.getQName());
+        LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, dataSchemaNode, stack.currentPath());
         final HtmlLine htmlLine = new HtmlLine(new ArrayList<>(ids), lyvNodeData, RpcInputOutput.OTHER, namespacePrefix,
                 augNode);
         lines.add(htmlLine);
-        currentPath.removeLast();
+        stack.exit();
         int modelAugmentationNumber = 1;
         for (DataSchemaNode node : augNode.getChildNodes()) {
-            currentPath.addLast(node.getQName());
-            final RpcInputOutput inputOutputOther = getAugmentationRpcInputOutput(currentPath);
+            stack.enter(node.getQName());
+            final RpcInputOutput inputOutputOther = getAugmentationRpcInputOutput(stack);
             ids.add(modelAugmentationNumber++);
-            lyvNodeData = new LyvNodeData(schemaContext, node, currentPath);
+            lyvNodeData = new LyvNodeData(schemaContext, node, stack.currentPath());
             final HtmlLine line = new HtmlLine(new ArrayList<>(ids), lyvNodeData, inputOutputOther, namespacePrefix);
             lines.add(line);
-            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(),
-                currentPath);
+            resolveChildNodes(lines, new ArrayList<>(ids), node, RpcInputOutput.OTHER, Collections.emptyList(), stack);
             ids.remove(ids.size() - 1);
-            currentPath.removeLast();
+            stack.exit();
         }
         return lines;
     }
 
-    private RpcInputOutput getAugmentationRpcInputOutput(final Deque<QName> currentPath) {
+    private RpcInputOutput getAugmentationRpcInputOutput(final LyvNodePathStack stack) {
         // FIXME: do not perform this copy?
-        List<QName> qnames = new ArrayList<>(currentPath);
+        List<QName> qnames = new ArrayList<>(stack.currentPath().toAbsolute().getNodeIdentifiers());
 
         Collection<? extends ActionDefinition> actions = new HashSet<>();
         RpcInputOutput inputOutputOther = RpcInputOutput.OTHER;
@@ -274,30 +270,30 @@ public class JsTree extends FormatPlugin {
     }
 
     private void resolveChildNodes(final List<Line> lines, final List<Integer> connections, final SchemaNode node,
-            final RpcInputOutput inputOutput, final List<QName> keys, final Deque<QName> currentPath) {
+            final RpcInputOutput inputOutput, final List<QName> keys, final LyvNodePathStack stack) {
         if (node instanceof DataNodeContainer) {
             final Iterator<? extends DataSchemaNode> childNodes = ((DataNodeContainer) node).getChildNodes().iterator();
-            resolveDataNodeContainer(childNodes, lines, connections, inputOutput, keys, currentPath);
+            resolveDataNodeContainer(childNodes, lines, connections, inputOutput, keys, stack);
         } else if (node instanceof ChoiceSchemaNode) {
             connections.add(0);
             final Collection<? extends CaseSchemaNode> cases = ((ChoiceSchemaNode) node).getCases();
             final Iterator<? extends CaseSchemaNode> iterator = cases.iterator();
-            resolveChoiceSchemaNode(iterator, lines, connections, inputOutput, currentPath);
+            resolveChoiceSchemaNode(iterator, lines, connections, inputOutput, stack);
         }
         // If action is in container or list
         if (node instanceof ActionNodeContainer) {
-            resolveActionNodeContainer(lines, connections, node, currentPath);
+            resolveActionNodeContainer(lines, connections, node, stack);
         }
     }
 
     private void resolveActionNodeContainer(final List<Line> lines, final List<Integer> connections,
-            final SchemaNode node, final Deque<QName> currentPath) {
+            final SchemaNode node, final LyvNodePathStack stack) {
         for (final ActionDefinition action : ((ActionNodeContainer) node).getActions()) {
             final int id = 1;
             connections.add(0);
             connections.set(connections.size() - 1, id);
-            currentPath.addLast(action.getQName());
-            LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, action, currentPath);
+            stack.enter(action.getQName());
+            LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, action, stack.currentPath());
             HtmlLine htmlLine = new HtmlLine(new ArrayList<>(connections), lyvNodeData, RpcInputOutput.OTHER,
                     namespacePrefix);
             lines.add(htmlLine);
@@ -305,47 +301,46 @@ public class JsTree extends FormatPlugin {
             final boolean outputExists = !action.getOutput().getChildNodes().isEmpty();
             if (inputExists) {
                 connections.add(1);
-                currentPath.addLast(action.getInput().getQName());
-                lyvNodeData = new LyvNodeData(schemaContext, action.getInput(), currentPath);
+                stack.enter(action.getInput().getQName());
+                lyvNodeData = new LyvNodeData(schemaContext, action.getInput(), stack.currentPath());
                 htmlLine = new HtmlLine(new ArrayList<>(connections), lyvNodeData, RpcInputOutput.INPUT,
                         namespacePrefix);
                 lines.add(htmlLine);
                 resolveChildNodes(lines, new ArrayList<>(connections), action.getInput(), RpcInputOutput.INPUT,
-                        Collections.emptyList(), currentPath);
+                        Collections.emptyList(), stack);
                 connections.remove(connections.size() - 1);
-                currentPath.removeLast();
+                stack.exit();
             }
             if (outputExists) {
                 connections.add(1);
-                currentPath.addLast(action.getOutput().getQName());
-                lyvNodeData = new LyvNodeData(schemaContext, action.getOutput(), currentPath);
+                stack.enter(action.getOutput().getQName());
+                lyvNodeData = new LyvNodeData(schemaContext, action.getOutput(), stack.currentPath());
                 htmlLine = new HtmlLine(new ArrayList<>(connections), lyvNodeData, RpcInputOutput.OUTPUT,
                         namespacePrefix);
                 lines.add(htmlLine);
                 resolveChildNodes(lines, new ArrayList<>(connections), action.getOutput(), RpcInputOutput.OUTPUT,
-                        Collections.emptyList(), currentPath);
+                        Collections.emptyList(), stack);
                 connections.remove(connections.size() - 1);
-                currentPath.removeLast();
+                stack.exit();
             }
             connections.remove(connections.size() - 1);
-            currentPath.removeLast();
+            stack.exit();
         }
     }
 
     private void resolveChoiceSchemaNode(final Iterator<? extends CaseSchemaNode> iterator, final List<Line> lines,
-            final List<Integer> connections, final RpcInputOutput inputOutput, final Deque<QName> currentPath) {
+            final List<Integer> connections, final RpcInputOutput inputOutput, final LyvNodePathStack stack) {
         int id = 1;
         while (iterator.hasNext()) {
             final DataSchemaNode child = iterator.next();
-            currentPath.addLast(child.getQName());
+            stack.enter(child.getQName());
             connections.set(connections.size() - 1, id++);
-            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, child, currentPath);
+            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, child, stack.currentPath());
             final HtmlLine htmlLine = new HtmlLine(new ArrayList<>(connections), lyvNodeData, inputOutput,
                     namespacePrefix);
             lines.add(htmlLine);
-            resolveChildNodes(lines, new ArrayList<>(connections), child, inputOutput, Collections.emptyList(),
-                    currentPath);
-            currentPath.removeLast();
+            resolveChildNodes(lines, new ArrayList<>(connections), child, inputOutput, Collections.emptyList(), stack);
+            stack.exit();
         }
         // remove last
         connections.remove(connections.size() - 1);
@@ -353,14 +348,14 @@ public class JsTree extends FormatPlugin {
 
     private void resolveDataNodeContainer(final Iterator<? extends DataSchemaNode> childNodes,
             final List<Line> lines, final List<Integer> connections, final RpcInputOutput inputOutput,
-            final List<QName> keys, final Deque<QName> currentPath) {
+            final List<QName> keys, final LyvNodePathStack stack) {
         int id = 1;
         connections.add(0);
         while (childNodes.hasNext()) {
             final DataSchemaNode child = childNodes.next();
-            currentPath.addLast(child.getQName());
+            stack.enter(child.getQName());
             connections.set(connections.size() - 1, id++);
-            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, child, currentPath, keys);
+            final LyvNodeData lyvNodeData = new LyvNodeData(schemaContext, child, stack.currentPath(), keys);
             final HtmlLine htmlLine = new HtmlLine(new ArrayList<>(connections), lyvNodeData, inputOutput,
                     namespacePrefix);
             lines.add(htmlLine);
@@ -368,8 +363,8 @@ public class JsTree extends FormatPlugin {
             if (child instanceof ListSchemaNode) {
                 keyDefinitions = ((ListSchemaNode) child).getKeyDefinition();
             }
-            resolveChildNodes(lines, new ArrayList<>(connections), child, inputOutput, keyDefinitions, currentPath);
-            currentPath.removeLast();
+            resolveChildNodes(lines, new ArrayList<>(connections), child, inputOutput, keyDefinitions, stack);
+            stack.exit();
         }
         // remove last only if the conatiner is not root container
         if (connections.size() > 1) {

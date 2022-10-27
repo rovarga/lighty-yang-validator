@@ -7,7 +7,6 @@
  */
 package io.lighty.yang.validator.formats.utility;
 
-import java.util.Collection;
 import java.util.List;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
@@ -27,27 +26,17 @@ public class LyvNodeData {
     private final boolean isKey;
     private final EffectiveModelContext context;
     private final SchemaNode node;
-    private final Absolute absolutePath;
+    private final LyvNodePath path;
 
     public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
-            final @NonNull Collection<QName> nodeIdentifiers) {
-        this(context, node, Absolute.of(nodeIdentifiers));
+            final @NonNull LyvNodePath path) {
+        this(context, node, path, null);
     }
 
     public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
-            final Collection<QName> nodeIdentifiers, final @Nullable List<QName> keys) {
-        this(context, node, Absolute.of(nodeIdentifiers), keys);
-    }
-
-    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
-            final @NonNull Absolute absolutePath) {
-        this(context, node, absolutePath, null);
-    }
-
-    public LyvNodeData(final @NonNull EffectiveModelContext context, final @NonNull SchemaNode node,
-            final @NonNull Absolute absolutePath, @Nullable final List<QName> keys) {
+            final @NonNull LyvNodePath path, @Nullable final List<QName> keys) {
         this.context = context;
-        this.absolutePath = absolutePath;
+        this.path = path;
         this.node = node;
         isKey = keys != null && keys.contains(node.getQName());
     }
@@ -60,8 +49,13 @@ public class LyvNodeData {
         return node;
     }
 
+    public LyvNodePath getPath() {
+        return path;
+    }
+
+    // FIXME: remove this
     public Absolute getAbsolutePath() {
-        return absolutePath;
+        return path.toAbsolute();
     }
 
     public boolean isNodeMandatory() {
