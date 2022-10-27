@@ -11,10 +11,12 @@ import io.lighty.yang.validator.simplify.stream.TrackingXmlParserStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.util.Collection;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
+import org.opendaylight.yangtools.yang.common.QName;
 import org.opendaylight.yangtools.yang.data.api.schema.stream.NormalizedNodeStreamWriter;
 import org.opendaylight.yangtools.yang.data.codec.xml.XmlCodecFactory;
 import org.opendaylight.yangtools.yang.data.impl.schema.ImmutableNormalizedNodeStreamWriter;
@@ -22,13 +24,12 @@ import org.opendaylight.yangtools.yang.data.impl.schema.NormalizedNodeResult;
 import org.opendaylight.yangtools.yang.model.api.ActionDefinition;
 import org.opendaylight.yangtools.yang.model.api.ActionNodeContainer;
 import org.opendaylight.yangtools.yang.model.api.AugmentationSchemaNode;
-import org.opendaylight.yangtools.yang.model.api.CaseSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.ChoiceSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.DataNodeContainer;
 import org.opendaylight.yangtools.yang.model.api.DataSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.EffectiveModelContext;
 import org.opendaylight.yangtools.yang.model.api.Module;
-import org.opendaylight.yangtools.yang.model.util.SchemaInferenceStack;
+import org.opendaylight.yangtools.yang.model.api.stmt.SchemaNodeIdentifier.Absolute;
 
 public class SchemaSelector {
 
@@ -65,57 +66,49 @@ public class SchemaSelector {
     }
 
     public void noXml() {
-        final SchemaInferenceStack schemaInferenceStack = SchemaInferenceStack.of(effectiveModelContext);
+        final Deque<QName> currentPath = new ArrayDeque<>();
+
         for (final Module module : effectiveModelContext.getModules()) {
             for (final DataSchemaNode node : module.getChildNodes()) {
-                resolveChildNodes(tree, node, true, false, schemaInferenceStack);
+                resolveChildNodes(tree, node, true, false, currentPath);
+                currentPath.clear();
             }
 
             for (final AugmentationSchemaNode aug : module.getAugmentations()) {
-                schemaInferenceStack.enterSchemaTree(aug.getTargetPath());
+                currentPath.addAll(aug.getTargetPath().getNodeIdentifiers());
                 for (final DataSchemaNode node : aug.getChildNodes()) {
-                    resolveChildNodes(tree, node, true, true, schemaInferenceStack);
+                    resolveChildNodes(tree, node, true, true, currentPath);
                 }
-                schemaInferenceStack.clear();
+                currentPath.clear();
             }
         }
     }
 
     private void resolveChildNodes(final SchemaTree schemaTree, final DataSchemaNode node, final boolean rootNode,
-            final boolean augNode, final SchemaInferenceStack schemaInferenceStack) {
+            final boolean augNode, final Deque<QName> currentPath) {
 
-        schemaInferenceStack.enterSchemaTree(node.getQName());
-        SchemaTree childSchemaTree = schemaTree.addChild(node, rootNode, augNode,
-                schemaInferenceStack.toSchemaNodeIdentifier());
+        currentPath.addLast(node.getQName());
+        SchemaTree childSchemaTree = schemaTree.addChild(node, rootNode, augNode, Absolute.of(currentPath));
         if (node instanceof DataNodeContainer) {
             for (final DataSchemaNode schemaNode : ((DataNodeContainer) node).getChildNodes()) {
-                resolveChildNodes(childSchemaTree, schemaNode, false, false, schemaInferenceStack);
+                resolveChildNodes(childSchemaTree, schemaNode, false, false, currentPath);
             }
         } else if (node instanceof ChoiceSchemaNode) {
-            final Collection<? extends CaseSchemaNode> cases = ((ChoiceSchemaNode) node).getCases();
-            for (final DataSchemaNode singelCase : cases) {
-                resolveChildNodes(childSchemaTree, singelCase, false, false, schemaInferenceStack);
+            for (final DataSchemaNode singleCase : ((ChoiceSchemaNode) node).getCases()) {
+                resolveChildNodes(childSchemaTree, singleCase, false, false, currentPath);
             }
         }
 
         if (node instanceof ActionNodeContainer) {
-            final Collection<? extends ActionDefinition> actions = ((ActionNodeContainer) node).getActions();
-            for (final ActionDefinition action : actions) {
-                schemaInferenceStack.enterSchemaTree(action.getQName());
-                childSchemaTree = childSchemaTree.addChild(action, false, false,
-                        schemaInferenceStack.toSchemaNodeIdentifier());
-                if (action.getInput() != null) {
-                    resolveChildNodes(childSchemaTree, action.getInput(), false, false,
-                            schemaInferenceStack);
-                }
-                if (action.getOutput() != null) {
-                    resolveChildNodes(childSchemaTree, action.getOutput(), false, false,
-                            schemaInferenceStack);
-                }
-                schemaInferenceStack.exit();
+            for (final ActionDefinition action : ((ActionNodeContainer) node).getActions()) {
+                currentPath.addLast(action.getQName());
+                childSchemaTree = childSchemaTree.addChild(action, false, false, Absolute.of(currentPath));
+                resolveChildNodes(childSchemaTree, action.getInput(), false, false, currentPath);
+                resolveChildNodes(childSchemaTree, action.getOutput(), false, false, currentPath);
+                currentPath.removeLast();
             }
         }
-        schemaInferenceStack.exit();
+        currentPath.removeLast();
     }
 }
 
